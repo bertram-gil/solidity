@@ -10,6 +10,7 @@ Compiler Features:
  * Code Generator: Avoid memory allocation for default value if it is not used.
  * SMTChecker: Support named arguments in function calls.
  * SMTChecker: Support struct constructor.
+ * SMTChecker: Support early returns in the CHC engine.
 
 Bugfixes:
  * SMTChecker: Fix internal compiler error when doing bitwise compound assignment with string literals.

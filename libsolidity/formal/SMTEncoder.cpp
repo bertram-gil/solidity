@@ -196,7 +196,11 @@ void SMTEncoder::inlineModifierInvocation(ModifierInvocation const* _invocation,
 	if (auto modifier = dynamic_cast<ModifierDefinition const*>(_definition))
 	{
 		if (modifier->isImplemented())
+		{
+			pushInlineFrame(modifier);
 			modifier->body().accept(*this);
+			popInlineFrame(modifier);
+		}
 		popCallStack();
 	}
 	else if (auto function = dynamic_cast<FunctionDefinition const*>(_definition))
