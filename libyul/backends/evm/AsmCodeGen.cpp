@@ -33,8 +33,6 @@
 
 #include <liblangutil/SourceLocation.h>
 
-#include <libsolutil/FixedHash.h>
-
 #include <memory>
 #include <functional>
 

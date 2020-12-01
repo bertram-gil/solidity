@@ -25,7 +25,6 @@
 #include <libyul/Exceptions.h>
 
 #include <libsolutil/CommonData.h>
-#include <libsolutil/FixedHash.h>
 
 #include <boost/algorithm/string.hpp>
 

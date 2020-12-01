@@ -40,7 +40,6 @@
 #include <libevmasm/LinkerObject.h>
 
 #include <libsolutil/Common.h>
-#include <libsolutil/FixedHash.h>
 #include <libsolutil/LazyInit.h>
 
 #include <boost/noncopyable.hpp>
@@ -141,7 +140,7 @@ public:
 
 	/// Sets library addresses. Addresses are cleared iff @a _libraries is missing.
 	/// Must be set before parsing.
-	void setLibraries(std::map<std::string, util::h160> const& _libraries = {});
+	void setLibraries(std::map<std::string, Address> const& _libraries = {});
 
 	/// Changes the optimiser settings.
 	/// Must be set before parsing.
@@ -472,7 +471,7 @@ private:
 	bool m_generateEvmBytecode = true;
 	bool m_generateIR = false;
 	bool m_generateEwasm = false;
-	std::map<std::string, util::h160> m_libraries;
+	std::map<std::string, Address> m_libraries;
 	/// list of path prefix remappings, e.g. mylibrary: github.com/ethereum = /usr/local/ethereum
 	/// "context:prefix=target"
 	std::vector<Remapping> m_remappings;

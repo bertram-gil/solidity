@@ -38,6 +38,8 @@
 #pragma warning(disable:3682) //call through incomplete class
 #endif
 
+#include <libsolutil/FixedHash.h>
+
 #include <libsolutil/vector_ref.h>
 
 #include <boost/version.hpp>
@@ -66,6 +68,10 @@ using bigint = boost::multiprecision::number<boost::multiprecision::cpp_int_back
 using u256 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<256, 256, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
 using s256 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<256, 256, boost::multiprecision::signed_magnitude, boost::multiprecision::unchecked, void>>;
 using u160 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<160, 160, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
+
+// An Ethereum address (20 bytes).
+// @NOTE This is not endian-specific; it's just a bunch of bytes.
+using Address = util::h160;
 
 // Map types.
 using StringMap = std::map<std::string, std::string>;

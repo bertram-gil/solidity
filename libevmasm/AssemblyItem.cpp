@@ -22,7 +22,6 @@
 
 #include <libsolutil/CommonData.h>
 #include <libsolutil/StringUtils.h>
-#include <libsolutil/FixedHash.h>
 #include <liblangutil/SourceLocation.h>
 
 #include <fstream>
