@@ -66,7 +66,11 @@ void copyMissingTags(set<CallableDeclaration const*> const& _baseFunctions, Stru
 				size_t docParaNameEndPos = content.content.find_first_of(" \t");
 				string const docParameterName = content.content.substr(0, docParaNameEndPos);
 
-				if (docParameterName != _declaration->returnParameters().at(n)->name())
+				if (
+					_declaration->returnParameterList() &&
+					_declaration->returnParameters().size() > n &&
+					docParameterName != _declaration->returnParameters().at(n)->name()
+				)
 				{
 					bool baseHasNoName = (*_baseFunctions.begin())->returnParameters().at(n)->name().empty();
 					string paramName = _declaration->returnParameters().at(n)->name();

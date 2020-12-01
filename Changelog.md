@@ -13,6 +13,7 @@ Compiler Features:
 
 Bugfixes:
  * SMTChecker: Fix internal compiler error when doing bitwise compound assignment with string literals.
+ * NatSpec: Fix segfault when inheriting return parameter documentation for modifiers with no parameters.
 
 ### 0.7.5 (2020-11-18)
 
