@@ -39,9 +39,27 @@ using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::yul;
 
+DataFlowAnalyzer::DataFlowAnalyzer(
+	Dialect const& _dialect,
+	map<YulString, SideEffects> _functionSideEffects
+):
+m_dialect(_dialect),
+m_functionSideEffects(std::move(_functionSideEffects)),
+m_knowledgeBase(_dialect, m_value)
+{
+	if (auto const* builtin = _dialect.memoryStoreFunction(YulString{}))
+		m_storeFunctionName[static_cast<unsigned>(StoreLoadLocation::Memory)] = builtin->name;
+	if (auto const* builtin = _dialect.memoryLoadFunction(YulString{}))
+		m_loadFunctionName[static_cast<unsigned>(StoreLoadLocation::Memory)] = builtin->name;
+	if (auto const* builtin = _dialect.storageStoreFunction(YulString{}))
+		m_storeFunctionName[static_cast<unsigned>(StoreLoadLocation::Storage)] = builtin->name;
+	if (auto const* builtin = _dialect.storageLoadFunction(YulString{}))
+		m_loadFunctionName[static_cast<unsigned>(StoreLoadLocation::Storage)] = builtin->name;
+}
+
 void DataFlowAnalyzer::operator()(ExpressionStatement& _statement)
 {
-	if (auto vars = isSimpleStore(evmasm::Instruction::SSTORE, _statement))
+	if (auto vars = isSimpleStore(StoreLoadLocation::Storage, _statement))
 	{
 		ASTModifier::operator()(_statement);
 		set<YulString> keysToErase;
@@ -55,7 +73,7 @@ void DataFlowAnalyzer::operator()(ExpressionStatement& _statement)
 			m_storage.eraseKey(key);
 		m_storage.set(vars->first, vars->second);
 	}
-	else if (auto vars = isSimpleStore(evmasm::Instruction::MSTORE, _statement))
+	else if (auto vars = isSimpleStore(StoreLoadLocation::Memory, _statement))
 	{
 		ASTModifier::operator()(_statement);
 		set<YulString> keysToErase;
@@ -145,7 +163,7 @@ void DataFlowAnalyzer::operator()(FunctionDefinition& _fun)
 	// but this could be difficult if it is subclassed.
 	map<YulString, AssignedValue> value;
 	size_t loopDepth{0};
-	InvertibleRelation<YulString> references;
+	unordered_map<YulString, set<YulString>> references;
 	InvertibleMap<YulString, YulString> storage;
 	InvertibleMap<YulString, YulString> memory;
 	swap(m_value, value);
@@ -243,7 +261,7 @@ void DataFlowAnalyzer::handleAssignment(set<YulString> const& _variables, Expres
 	auto const& referencedVariables = movableChecker.referencedVariables();
 	for (auto const& name: _variables)
 	{
-		m_references.set(name, referencedVariables);
+		m_references[name] = referencedVariables;
 		if (!_isDeclaration)
 		{
 			// assignment to slot denoted by "name"
@@ -265,9 +283,9 @@ void DataFlowAnalyzer::handleAssignment(set<YulString> const& _variables, Expres
 			// This might erase additional knowledge about the slot.
 			// On the other hand, if we knew the value in the slot
 			// already, then the sload() / mload() would have been replaced by a variable anyway.
-			if (auto key = isSimpleLoad(evmasm::Instruction::MLOAD, *_value))
+			if (auto key = isSimpleLoad(StoreLoadLocation::Memory, *_value))
 				m_memory.set(*key, variable);
-			else if (auto key = isSimpleLoad(evmasm::Instruction::SLOAD, *_value))
+			else if (auto key = isSimpleLoad(StoreLoadLocation::Storage, *_value))
 				m_storage.set(*key, variable);
 		}
 	}
@@ -280,7 +298,6 @@ void DataFlowAnalyzer::pushScope(bool _functionScope)
 
 void DataFlowAnalyzer::popScope()
 {
-	clearValues(std::move(m_variableScopes.back().variables));
 	m_variableScopes.pop_back();
 }
 
@@ -302,28 +319,28 @@ void DataFlowAnalyzer::clearValues(set<YulString> _variables)
 	// First clear storage knowledge, because we do not have to clear
 	// storage knowledge of variables whose expression has changed,
 	// since the value is still unchanged.
-	for (auto const& name: _variables)
-	{
-		// clear slot denoted by "name"
-		m_storage.eraseKey(name);
-		// clear slot contents denoted by "name"
-		m_storage.eraseValue(name);
-		// assignment to slot denoted by "name"
-		m_memory.eraseKey(name);
-		// assignment to slot contents denoted by "name"
-		m_memory.eraseValue(name);
-	}
+	auto clear = [&](auto&& values) {
+		auto it = values.begin();
+		while (it != values.end())
+			if (_variables.count(it->first) || _variables.count(it->second))
+				it = values.erase(it);
+			else
+				++it;
+	};
+	clear(m_storage.values);
+	clear(m_memory.values);
 
 	// Also clear variables that reference variables to be cleared.
 	for (auto const& name: _variables)
-		for (auto const& ref: m_references.backward[name])
-			_variables.emplace(ref);
+		for (auto const& [ref, names]: m_references)
+			if (names.count(name))
+				_variables.emplace(ref);
 
 	// Clear the value and update the reference relation.
 	for (auto const& name: _variables)
 		m_value.erase(name);
 	for (auto const& name: _variables)
-		m_references.eraseKey(name);
+		m_references.erase(name);
 }
 
 void DataFlowAnalyzer::assignValue(YulString _variable, Expression const* _value)
@@ -367,15 +384,15 @@ void DataFlowAnalyzer::joinKnowledgeHelper(
 	// This also works for memory because _older is an "older version"
 	// of m_memory and thus any overlapping write would have cleared the keys
 	// that are not known to be different inside m_memory already.
-	set<YulString> keysToErase;
-	for (auto const& item: _this.values)
+	auto it = _this.values.begin();
+	while (it != _this.values.end())
 	{
-		auto it = _older.values.find(item.first);
-		if (it == _older.values.end() || it->second != item.second)
-			keysToErase.insert(item.first);
+		auto oldit = _older.values.find(it->first);
+		if (oldit != _older.values.end() && it->second == oldit->second)
+			++it;
+		else
+			it = _this.values.erase(it);
 	}
-	for (auto const& key: keysToErase)
-		_this.eraseKey(key);
 }
 
 bool DataFlowAnalyzer::inScope(YulString _variableName) const
@@ -391,53 +408,27 @@ bool DataFlowAnalyzer::inScope(YulString _variableName) const
 }
 
 std::optional<pair<YulString, YulString>> DataFlowAnalyzer::isSimpleStore(
-	evmasm::Instruction _store,
+	StoreLoadLocation _location,
 	ExpressionStatement const& _statement
 ) const
 {
-	yulAssert(
-		_store == evmasm::Instruction::MSTORE ||
-		_store == evmasm::Instruction::SSTORE,
-		""
-	);
-	if (holds_alternative<FunctionCall>(_statement.expression))
-	{
-		FunctionCall const& funCall = std::get<FunctionCall>(_statement.expression);
-		if (EVMDialect const* dialect = dynamic_cast<EVMDialect const*>(&m_dialect))
-			if (auto const* builtin = dialect->builtin(funCall.functionName.name))
-				if (builtin->instruction == _store)
-					if (
-						holds_alternative<Identifier>(funCall.arguments.at(0)) &&
-						holds_alternative<Identifier>(funCall.arguments.at(1))
-					)
-					{
-						YulString key = std::get<Identifier>(funCall.arguments.at(0)).name;
-						YulString value = std::get<Identifier>(funCall.arguments.at(1)).name;
-						return make_pair(key, value);
-					}
-	}
+	if (FunctionCall const* funCall = get_if<FunctionCall>(&_statement.expression))
+		if (funCall->functionName.name == m_storeFunctionName[static_cast<unsigned>(_location)])
+			if (Identifier const* key = std::get_if<Identifier>(&funCall->arguments.front()))
+				if (Identifier const* value = std::get_if<Identifier>(&funCall->arguments.back()))
+					return make_pair(key->name, value->name);
 	return {};
 }
 
 std::optional<YulString> DataFlowAnalyzer::isSimpleLoad(
-	evmasm::Instruction _load,
+	StoreLoadLocation _location,
 	Expression const& _expression
 ) const
 {
-	yulAssert(
-		_load == evmasm::Instruction::MLOAD ||
-		_load == evmasm::Instruction::SLOAD,
-		""
-	);
-	if (holds_alternative<FunctionCall>(_expression))
-	{
-		FunctionCall const& funCall = std::get<FunctionCall>(_expression);
-		if (EVMDialect const* dialect = dynamic_cast<EVMDialect const*>(&m_dialect))
-			if (auto const* builtin = dialect->builtin(funCall.functionName.name))
-				if (builtin->instruction == _load)
-					if (holds_alternative<Identifier>(funCall.arguments.at(0)))
-						return std::get<Identifier>(funCall.arguments.at(0)).name;
-	}
+	if (FunctionCall const* funCall = get_if<FunctionCall>(&_expression))
+		if (funCall->functionName.name == m_loadFunctionName[static_cast<unsigned>(_location)])
+			if (Identifier const* key = std::get_if<Identifier>(&funCall->arguments.front()))
+				return key->name;
 	return {};
 }
 
