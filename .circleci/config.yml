@@ -843,6 +843,9 @@ jobs:
       - run:
           name: External GnosisSafe tests
           command: |
+            # FIXME: Running test twice because they're flaky. The following failures happen intermittently:
+            # - ProviderError during tests (Truffle randomly loses connection with Ganache)
+            # - Invalid owner in "should add, remove and replace an owner and update the threshold"
             test/externalTests/gnosis.sh /tmp/workspace/soljson.js || test/externalTests/gnosis.sh /tmp/workspace/soljson.js
       # TODO: Re-enable notifications once this is running nightly rather than as a PR check
       #- run: *gitter_notify_failure
@@ -875,6 +878,9 @@ jobs:
       - run:
           name: External Zeppelin tests
           command: |
+            # FIXME: Running test twice because they're flaky and sometimes fail due to a timeout in
+            # "before each" hook for "keeps ownership of the token".
+            # This might be something that's aleady been fixed upstream so try updating the external test repo.
             test/externalTests/zeppelin.sh /tmp/workspace/soljson.js || test/externalTests/zeppelin.sh /tmp/workspace/soljson.js
       # TODO: Re-enable notifications once this is running nightly rather than as a PR check
       #- run: *gitter_notify_failure
@@ -915,7 +921,7 @@ jobs:
       - run:
           name: External ColonyNetworks tests
           command: |
-            test/externalTests/colony.sh /tmp/workspace/soljson.js || test/externalTests/colony.sh /tmp/workspace/soljson.js
+            test/externalTests/colony.sh /tmp/workspace/soljson.js
       # TODO: Re-enable notifications once this is running nightly rather than as a PR check
       #- run: *gitter_notify_failure
       #- run: *gitter_notify_success
