@@ -40,7 +40,7 @@ function ens_test
 
     run_install install_fn
 
-    truffle_run_test compile_fn test_fn
+    truffle_run_test compile_fn test_fn no_force_abi_v2
 }
 
 external_test Ens ens_test
