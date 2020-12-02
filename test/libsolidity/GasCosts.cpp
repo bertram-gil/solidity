@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(string_storage)
 	auto evmVersion = solidity::test::CommonOptions::get().evmVersion();
 
 	if (evmVersion <= EVMVersion::byzantium())
-		CHECK_DEPLOY_GAS(133045, 129731, evmVersion);
+		CHECK_DEPLOY_GAS(152657, 129731, evmVersion);
 	// This is only correct on >=Constantinople.
 	else if (!CommonOptions::get().useABIEncoderV1)
 	{
