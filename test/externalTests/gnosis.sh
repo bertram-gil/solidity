@@ -35,6 +35,8 @@ function gnosis_safe_test
 
     truffle_setup "$SOLJSON" https://github.com/solidity-external-tests/safe-contracts.git development_070_new
 
+    force_truffle_version ^5.1.55
+
     sed -i 's|github:gnosis/mock-contract#sol_0_5_0|github:solidity-external-tests/mock-contract#master_070_new|g' package.json
     rm -f package-lock.json
     rm -rf node_modules/
