@@ -614,16 +614,8 @@ void IRGenerator::generateImplicitConstructors(ContractDefinition const& _contra
 			)");
 			vector<string> params;
 			if (contract->constructor())
-			{
-				for (auto const& modifierInvocation: contract->constructor()->modifiers())
-					// This can be ContractDefinition too for super arguments. That is supported.
-					solUnimplementedAssert(
-						!dynamic_cast<ModifierDefinition const*>(modifierInvocation->name()->annotation().referencedDeclaration),
-						"Modifiers not implemented yet."
-					);
 				for (ASTPointer<VariableDeclaration> const& varDecl: contract->constructor()->parameters())
 					params += m_context.addLocalVariable(*varDecl).stackSlots();
-			}
 			t("params", joinHumanReadable(params));
 			vector<string> baseParams = listAllParams(baseConstructorParams);
 			t("baseParams", joinHumanReadable(baseParams));
@@ -642,7 +634,37 @@ void IRGenerator::generateImplicitConstructors(ContractDefinition const& _contra
 			else
 				t("hasNextConstructor", false);
 			t("initStateVariables", initStateVariables(*contract));
-			t("userDefinedConstructorBody", contract->constructor() ? generate(contract->constructor()->body()) : "");
+			string body;
+			if (FunctionDefinition const* constructor = contract->constructor())
+			{
+				vector<ModifierInvocation*> realModifiers;
+				for (auto const& modifierInvocation: constructor->modifiers())
+					// Filter out the base constructor calls
+					if (dynamic_cast<ModifierDefinition const*>(modifierInvocation->name()->annotation().referencedDeclaration))
+						realModifiers.emplace_back(modifierInvocation.get());
+				if (realModifiers.empty())
+					body = generate(constructor->body());
+				else
+				{
+					for (size_t i = 0; i < realModifiers.size(); ++i)
+					{
+						ModifierInvocation const& modifier = *realModifiers.at(i);
+						string next =
+							i + 1 < realModifiers.size() ?
+							IRNames::modifierInvocation(*realModifiers.at(i)) :
+							IRNames::functionWithModifierInner(*constructor);
+						generateModifier(modifier, *constructor, next);
+					}
+					body =
+						IRNames::modifierInvocation(*constructor->modifiers().at(0)) +
+						"(" +
+						joinHumanReadable(params) +
+						")";
+					// Now generate the actual inner function.
+					generateFunction(*constructor, false);
+				}
+			}
+			t("userDefinedConstructorBody", move(body));
 
 			return t.render();
 		});
