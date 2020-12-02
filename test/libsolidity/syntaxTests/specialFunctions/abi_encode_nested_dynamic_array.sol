@@ -5,4 +5,4 @@ contract C {
     }
 }
 // ----
-// TypeError 2056: (66-96): This type cannot be encoded.
+// TypeError 2056: (86-116): This type cannot be encoded.
